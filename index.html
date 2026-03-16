@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Writing Tool</title>
+    <link rel="stylesheet" href="./styles.css" />
+    <script src="./app.js" defer></script>
+  </head>
+  <body>
+    <main class="app-shell">
+      <header class="hero">
+        <p class="eyebrow">Writing Utility</p>
+        <h1>글쓰기 도구</h1>
+        <p class="hero-copy">
+          글자수 집계와 텍스트 차이 비교를 한 화면에서 처리합니다.
+        </p>
+      </header>
+
+      <section class="card">
+        <div class="card-head">
+          <h2>글자수 세기</h2>
+          <label class="checkbox">
+            <input id="excludeBrackets" type="checkbox" />
+            괄호 안 내용 제외
+          </label>
+        </div>
+
+        <label class="input-label" for="countInput">텍스트 입력</label>
+        <textarea
+          id="countInput"
+          class="text-input large auto-grow"
+          placeholder="여기에 텍스트를 입력하세요."
+        ></textarea>
+
+        <div class="metrics">
+          <article class="metric">
+            <p class="metric-title">공백 포함</p>
+            <p id="countWithSpace" class="metric-value">0</p>
+          </article>
+          <article class="metric">
+            <p class="metric-title">공백 미포함</p>
+            <p id="countWithoutSpace" class="metric-value">0</p>
+          </article>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="card-head">
+          <h2>두 글 차이 비교</h2>
+          <button id="compareNow" class="primary-btn" type="button">지금 비교</button>
+        </div>
+
+        <div class="editor-grid">
+          <div>
+            <label class="input-label" for="leftText">왼쪽 텍스트</label>
+            <textarea
+              id="leftText"
+              class="text-input medium"
+              placeholder="원문 텍스트"
+            ></textarea>
+            <div class="mini-metrics">
+              <article class="mini-metric">
+                <p class="mini-label">공백 포함</p>
+                <p id="leftCountWithSpace" class="mini-value">0</p>
+              </article>
+              <article class="mini-metric">
+                <p class="mini-label">공백 미포함</p>
+                <p id="leftCountWithoutSpace" class="mini-value">0</p>
+              </article>
+            </div>
+          </div>
+          <div>
+            <label class="input-label" for="rightText">오른쪽 텍스트</label>
+            <textarea
+              id="rightText"
+              class="text-input medium"
+              placeholder="비교 대상 텍스트"
+            ></textarea>
+            <div class="mini-metrics">
+              <article class="mini-metric">
+                <p class="mini-label">공백 포함</p>
+                <p id="rightCountWithSpace" class="mini-value">0</p>
+              </article>
+              <article class="mini-metric">
+                <p class="mini-label">공백 미포함</p>
+                <p id="rightCountWithoutSpace" class="mini-value">0</p>
+              </article>
+            </div>
+          </div>
+        </div>
+
+        <p class="hint">입력 변경 시 자동으로 비교되며 버튼으로 즉시 재실행할 수 있습니다.</p>
+
+        <div class="legend">
+          <span class="chip neutral">동일</span>
+          <span class="chip removed">삭제</span>
+          <span class="chip added">추가</span>
+          <span class="chip changed">수정</span>
+        </div>
+
+        <div class="diff-grid">
+          <article class="diff-panel">
+            <h3>왼쪽 (기준)</h3>
+            <div id="leftDiff" class="diff-output"></div>
+          </article>
+          <article class="diff-panel">
+            <h3>오른쪽 (비교)</h3>
+            <div id="rightDiff" class="diff-output"></div>
+          </article>
+        </div>
+      </section>
+    </main>
+  </body>
+</html>
