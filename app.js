@@ -37,6 +37,7 @@
 
   let diffDebounceId = null;
   let storageEnabled = true;
+  const autoGrowTextareas = [dom.countInput, dom.leftText, dom.rightText];
 
   function loadState() {
     if (!storageEnabled) {
@@ -107,6 +108,12 @@
     }
     textarea.style.height = "auto";
     textarea.style.height = `${textarea.scrollHeight}px`;
+  }
+
+  function resizeAllTextareas() {
+    for (const textarea of autoGrowTextareas) {
+      autoResizeTextarea(textarea);
+    }
   }
 
   function stripBracketContent(text) {
@@ -387,10 +394,12 @@
     });
 
     dom.leftText.addEventListener("input", () => {
+      autoResizeTextarea(dom.leftText);
       scheduleDiffRender();
       saveState();
     });
     dom.rightText.addEventListener("input", () => {
+      autoResizeTextarea(dom.rightText);
       scheduleDiffRender();
       saveState();
     });
@@ -406,7 +415,8 @@
   function init() {
     restoreState();
     bindEvents();
-    autoResizeTextarea(dom.countInput);
+    resizeAllTextareas();
+    window.addEventListener("resize", resizeAllTextareas);
     updateCounter();
     renderDiff(dom.leftText.value, dom.rightText.value);
   }
