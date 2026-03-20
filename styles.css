@@ -171,6 +171,21 @@ h3 {
   white-space: nowrap;
 }
 
+.checkbox-group {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.5rem 0.8rem;
+}
+
+.checkbox-group-label {
+  color: var(--text-muted);
+  font-size: 0.88rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
 .checkbox input {
   width: 16px;
   height: 16px;
@@ -361,5 +376,9 @@ h3 {
 
   .card-head {
     flex-wrap: wrap;
+  }
+
+  .checkbox-group {
+    justify-content: flex-start;
   }
 }

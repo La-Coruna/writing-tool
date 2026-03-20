@@ -20,10 +20,21 @@
       <section class="card">
         <div class="card-head">
           <h2>글자수 세기</h2>
-          <label class="checkbox">
-            <input id="excludeBrackets" type="checkbox" />
-            괄호 안 내용 제외
-          </label>
+          <div class="checkbox-group" role="group" aria-labelledby="excludeBracketOptionsLabel">
+            <span id="excludeBracketOptionsLabel" class="checkbox-group-label">괄호 안 내용 제외</span>
+            <label class="checkbox">
+              <input id="excludeRoundBrackets" type="checkbox" />
+              소괄호
+            </label>
+            <label class="checkbox">
+              <input id="excludeSquareBrackets" type="checkbox" />
+              대괄호
+            </label>
+            <label class="checkbox">
+              <input id="excludeAngleBrackets" type="checkbox" />
+              꺾쇠괄호
+            </label>
+          </div>
         </div>
 
         <label class="input-label" for="countInput">텍스트 입력</label>

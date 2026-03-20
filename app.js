@@ -9,11 +9,17 @@
       ? new Intl.Segmenter("ko", { granularity: "word" })
       : null;
 
-  const BRACKET_PAIRS = {
-    "(": ")",
-    "[": "]",
-    "{": "}",
-    "（": "）",
+  const BRACKET_GROUPS = {
+    round: {
+      "(": ")",
+      "（": "）",
+    },
+    square: {
+      "[": "]",
+    },
+    angle: {
+      "<": ">",
+    },
   };
 
   const MAX_LCS_CELLS = 2_000_000;
@@ -21,7 +27,9 @@
 
   const dom = {
     countInput: document.getElementById("countInput"),
-    excludeBrackets: document.getElementById("excludeBrackets"),
+    excludeRoundBrackets: document.getElementById("excludeRoundBrackets"),
+    excludeSquareBrackets: document.getElementById("excludeSquareBrackets"),
+    excludeAngleBrackets: document.getElementById("excludeAngleBrackets"),
     countWithSpace: document.getElementById("countWithSpace"),
     countWithoutSpace: document.getElementById("countWithoutSpace"),
     compareNow: document.getElementById("compareNow"),
@@ -38,6 +46,33 @@
   let diffDebounceId = null;
   let storageEnabled = true;
   const autoGrowTextareas = [dom.countInput, dom.leftText, dom.rightText];
+  const bracketOptionInputs = [
+    dom.excludeRoundBrackets,
+    dom.excludeSquareBrackets,
+    dom.excludeAngleBrackets,
+  ];
+
+  function getExcludedBracketTypes() {
+    return {
+      round: dom.excludeRoundBrackets.checked,
+      square: dom.excludeSquareBrackets.checked,
+      angle: dom.excludeAngleBrackets.checked,
+    };
+  }
+
+  function hasExcludedBracketTypes() {
+    return Object.values(getExcludedBracketTypes()).some(Boolean);
+  }
+
+  function getActiveBracketPairs() {
+    const excludedBracketTypes = getExcludedBracketTypes();
+    return Object.entries(excludedBracketTypes).reduce((pairs, [type, enabled]) => {
+      if (enabled) {
+        Object.assign(pairs, BRACKET_GROUPS[type]);
+      }
+      return pairs;
+    }, {});
+  }
 
   function loadState() {
     if (!storageEnabled) {
@@ -65,7 +100,7 @@
     }
     const state = {
       countInput: dom.countInput.value,
-      excludeBrackets: dom.excludeBrackets.checked,
+      excludedBracketTypes: getExcludedBracketTypes(),
       leftText: dom.leftText.value,
       rightText: dom.rightText.value,
     };
@@ -83,9 +118,24 @@
     }
 
     dom.countInput.value = typeof state.countInput === "string" ? state.countInput : "";
-    dom.excludeBrackets.checked = Boolean(state.excludeBrackets);
     dom.leftText.value = typeof state.leftText === "string" ? state.leftText : "";
     dom.rightText.value = typeof state.rightText === "string" ? state.rightText : "";
+
+    const legacyExcludeBrackets = Boolean(state.excludeBrackets);
+    const excludedBracketTypes =
+      state.excludedBracketTypes && typeof state.excludedBracketTypes === "object"
+        ? state.excludedBracketTypes
+        : null;
+
+    dom.excludeRoundBrackets.checked = excludedBracketTypes
+      ? Boolean(excludedBracketTypes.round)
+      : legacyExcludeBrackets;
+    dom.excludeSquareBrackets.checked = excludedBracketTypes
+      ? Boolean(excludedBracketTypes.square)
+      : legacyExcludeBrackets;
+    dom.excludeAngleBrackets.checked = excludedBracketTypes
+      ? Boolean(excludedBracketTypes.angle)
+      : legacyExcludeBrackets;
   }
 
   function countGraphemes(text) {
@@ -116,7 +166,7 @@
     }
   }
 
-  function stripBracketContent(text) {
+  function stripBracketContent(text, bracketPairs) {
     if (!text) {
       return "";
     }
@@ -125,8 +175,8 @@
     let output = "";
 
     for (const char of text) {
-      if (Object.prototype.hasOwnProperty.call(BRACKET_PAIRS, char)) {
-        closingStack.push(BRACKET_PAIRS[char]);
+      if (Object.prototype.hasOwnProperty.call(bracketPairs, char)) {
+        closingStack.push(bracketPairs[char]);
         continue;
       }
 
@@ -147,7 +197,7 @@
 
   function updateCounter() {
     const raw = dom.countInput.value;
-    const applied = dom.excludeBrackets.checked ? stripBracketContent(raw) : raw;
+    const applied = hasExcludedBracketTypes() ? stripBracketContent(raw, getActiveBracketPairs()) : raw;
 
     const withSpaceCount = countGraphemes(applied);
     const withoutSpaceCount = countGraphemes(applied.replace(/\s/gu, ""));
@@ -388,10 +438,12 @@
       updateCounter();
       saveState();
     });
-    dom.excludeBrackets.addEventListener("change", () => {
-      updateCounter();
-      saveState();
-    });
+    for (const input of bracketOptionInputs) {
+      input.addEventListener("change", () => {
+        updateCounter();
+        saveState();
+      });
+    }
 
     dom.leftText.addEventListener("input", () => {
       autoResizeTextarea(dom.leftText);
