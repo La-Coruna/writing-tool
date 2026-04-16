@@ -49,6 +49,8 @@
     mergeCountWithoutSpace: document.getElementById("mergeCountWithoutSpace"),
     mergeDiff: document.getElementById("mergeDiff"),
     selectionCountBadge: document.getElementById("selectionCountBadge"),
+    selectionCountText: document.getElementById("selectionCountText"),
+    applySelectionToMerge: document.getElementById("applySelectionToMerge"),
   };
 
   let diffDebounceId = null;
@@ -57,6 +59,7 @@
   let mergeSelections = {};
   let currentBlocks = [];
   let selectionPointer = null;
+  let selectedMergeChoices = {};
   const autoGrowTextareas = [dom.countInput, dom.leftText, dom.rightText];
   const bracketOptionInputs = [
     dom.excludeRoundBrackets,
@@ -267,6 +270,32 @@
     return selectedText;
   }
 
+  function getSelectedMergeChoices(selection) {
+    if (!selection || selection.rangeCount === 0 || selection.isCollapsed) {
+      return {};
+    }
+
+    const range = selection.getRangeAt(0);
+    const choices = {};
+    for (const output of [dom.leftDiff, dom.rightDiff]) {
+      if (!rangeIntersectsNode(range, output)) {
+        continue;
+      }
+      const changeElements = output.querySelectorAll("[data-change-id][data-side]");
+      for (const element of changeElements) {
+        if (!rangeIntersectsNode(range, element)) {
+          continue;
+        }
+        const changeId = element.dataset.changeId;
+        const side = element.dataset.side;
+        if (changeId && (side === "left" || side === "right")) {
+          choices[changeId] = side;
+        }
+      }
+    }
+    return choices;
+  }
+
   function getSelectionBadgePosition(selection) {
     if (selectionPointer) {
       return selectionPointer;
@@ -282,10 +311,14 @@
 
   function hideSelectionBadge() {
     dom.selectionCountBadge.classList.add("is-hidden");
+    selectedMergeChoices = {};
   }
 
-  function showSelectionBadge(count, position) {
-    dom.selectionCountBadge.textContent = `${formatCount(count)}자`;
+  function showSelectionBadge(count, position, mergeChoices) {
+    const hasMergeChoices = Object.keys(mergeChoices).length > 0;
+    selectedMergeChoices = mergeChoices;
+    dom.selectionCountText.textContent = `${formatCount(count)}자`;
+    dom.applySelectionToMerge.disabled = !hasMergeChoices;
     dom.selectionCountBadge.classList.remove("is-hidden");
 
     const badgeRect = dom.selectionCountBadge.getBoundingClientRect();
@@ -302,13 +335,14 @@
     const selection = window.getSelection();
     const selectedText = extractSelectedDiffText(selection);
     const selectedCount = countGraphemes(selectedText);
+    const mergeChoices = getSelectedMergeChoices(selection);
 
     if (selectedCount === 0) {
       hideSelectionBadge();
       return;
     }
 
-    showSelectionBadge(selectedCount, getSelectionBadgePosition(selection));
+    showSelectionBadge(selectedCount, getSelectionBadgePosition(selection), mergeChoices);
   }
 
   function rememberSelectionPointer(event) {
@@ -588,7 +622,15 @@
     const text = getBlockSideText(block, side);
 
     if (!mergeActive) {
-      appendText(parent, text, getBlockSideClass(block, side));
+      if (!text) {
+        return;
+      }
+      const span = document.createElement("span");
+      span.className = `${getBlockSideClass(block, side)} diff-change`;
+      span.dataset.changeId = block.id;
+      span.dataset.side = side;
+      span.textContent = text;
+      parent.appendChild(span);
       return;
     }
 
@@ -673,6 +715,23 @@
 
   function selectMergeChoice(changeId, side) {
     mergeSelections[changeId] = side;
+    renderDiff(dom.leftText.value, dom.rightText.value);
+    saveState();
+  }
+
+  function applySelectedMergeChoices() {
+    if (Object.keys(selectedMergeChoices).length === 0) {
+      return;
+    }
+
+    if (!mergeActive) {
+      setMergeActive(true);
+    }
+
+    mergeSelections = {
+      ...mergeSelections,
+      ...selectedMergeChoices,
+    };
     renderDiff(dom.leftText.value, dom.rightText.value);
     saveState();
   }
@@ -762,7 +821,14 @@
   }
 
   function bindSelectionCountEvents() {
+    dom.applySelectionToMerge.addEventListener("pointerdown", (event) => {
+      event.preventDefault();
+    });
+    dom.applySelectionToMerge.addEventListener("click", applySelectedMergeChoices);
     document.addEventListener("pointerdown", (event) => {
+      if (event.target instanceof Element && event.target.closest("#selectionCountBadge")) {
+        return;
+      }
       rememberSelectionPointer(event);
     });
     document.addEventListener("pointermove", (event) => {
