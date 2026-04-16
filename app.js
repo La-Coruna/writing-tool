@@ -105,6 +105,19 @@
     }
   }
 
+  function normalizeMergeSelections(value) {
+    if (!value || typeof value !== "object") {
+      return {};
+    }
+
+    return Object.entries(value).reduce((selections, [changeId, side]) => {
+      if (side === "left" || side === "right") {
+        selections[String(changeId)] = side;
+      }
+      return selections;
+    }, {});
+  }
+
   function saveState() {
     if (!storageEnabled) {
       return;
@@ -114,6 +127,8 @@
       excludedBracketTypes: getExcludedBracketTypes(),
       leftText: dom.leftText.value,
       rightText: dom.rightText.value,
+      mergeActive,
+      mergeSelections,
     };
     try {
       window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
@@ -147,6 +162,9 @@
     dom.excludeAngleBrackets.checked = excludedBracketTypes
       ? Boolean(excludedBracketTypes.angle)
       : legacyExcludeBrackets;
+
+    mergeSelections = normalizeMergeSelections(state.mergeSelections);
+    setMergeActive(Boolean(state.mergeActive));
   }
 
   function countGraphemes(text) {
@@ -655,6 +673,7 @@
   function selectMergeChoice(changeId, side) {
     mergeSelections[changeId] = side;
     renderDiff(dom.leftText.value, dom.rightText.value);
+    saveState();
   }
 
   function renderDiff(leftText, rightText) {
@@ -791,6 +810,7 @@
       resetMergeSelections();
       setMergeActive(true);
       renderDiff(dom.leftText.value, dom.rightText.value);
+      saveState();
     });
     dom.leftDiff.addEventListener("click", handleDiffChoiceClick);
     dom.rightDiff.addEventListener("click", handleDiffChoiceClick);
