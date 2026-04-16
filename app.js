@@ -42,9 +42,12 @@
     rightCountWithSpace: document.getElementById("rightCountWithSpace"),
     rightCountWithoutSpace: document.getElementById("rightCountWithoutSpace"),
     diffGrid: document.getElementById("diffGrid"),
+    copyLeftText: document.getElementById("copyLeftText"),
+    copyRightText: document.getElementById("copyRightText"),
     leftDiff: document.getElementById("leftDiff"),
     rightDiff: document.getElementById("rightDiff"),
     mergePanel: document.getElementById("mergePanel"),
+    copyMergeResult: document.getElementById("copyMergeResult"),
     mergeCountWithSpace: document.getElementById("mergeCountWithSpace"),
     mergeCountWithoutSpace: document.getElementById("mergeCountWithoutSpace"),
     mergeDiff: document.getElementById("mergeDiff"),
@@ -58,6 +61,7 @@
   let mergeActive = false;
   let mergeSelections = {};
   let currentBlocks = [];
+  let currentMergedText = "";
   let selectionPointer = null;
   let selectedMergeChoices = {};
   const autoGrowTextareas = [dom.countInput, dom.leftText, dom.rightText];
@@ -195,6 +199,19 @@
 
     dom.mergeCountWithSpace.textContent = formatCount(withSpace);
     dom.mergeCountWithoutSpace.textContent = formatCount(withoutSpace);
+  }
+
+  function updateCopyMergeButton() {
+    dom.copyMergeResult.disabled = !currentMergedText;
+  }
+
+  function setCopyButtonLabel(button, label) {
+    button.textContent = label;
+  }
+
+  function updateSourceCopyButtons() {
+    dom.copyLeftText.disabled = !dom.leftText.value;
+    dom.copyRightText.disabled = !dom.rightText.value;
   }
 
   function getElementFromNode(node) {
@@ -413,6 +430,7 @@
     dom.leftCountWithoutSpace.textContent = leftWithoutSpace.toLocaleString("ko-KR");
     dom.rightCountWithSpace.textContent = rightWithSpace.toLocaleString("ko-KR");
     dom.rightCountWithoutSpace.textContent = rightWithoutSpace.toLocaleString("ko-KR");
+    updateSourceCopyButtons();
   }
 
   function tokenize(text) {
@@ -665,16 +683,20 @@
 
   function renderMergeResult(blocks) {
     if (!mergeActive) {
+      currentMergedText = "";
       updateMergeCounter("");
+      updateCopyMergeButton();
       return;
     }
 
     dom.mergeDiff.textContent = "";
 
     if (blocks.length === 0) {
+      currentMergedText = "";
       dom.mergeDiff.textContent = "병합할 텍스트를 입력하세요.";
       dom.mergeDiff.classList.add("empty");
       updateMergeCounter("");
+      updateCopyMergeButton();
       return;
     }
 
@@ -698,7 +720,9 @@
     }
 
     dom.mergeDiff.appendChild(fragment);
+    currentMergedText = mergedText;
     updateMergeCounter(mergedText);
+    updateCopyMergeButton();
   }
 
   function resetMergeSelections() {
@@ -717,6 +741,59 @@
     mergeSelections[changeId] = side;
     renderDiff(dom.leftText.value, dom.rightText.value);
     saveState();
+  }
+
+  function fallbackCopyText(text) {
+    const textarea = document.createElement("textarea");
+    textarea.value = text;
+    textarea.setAttribute("readonly", "");
+    textarea.style.position = "fixed";
+    textarea.style.top = "-9999px";
+    textarea.style.left = "-9999px";
+    document.body.appendChild(textarea);
+    textarea.select();
+    let copied = false;
+    try {
+      copied = document.execCommand("copy");
+    } finally {
+      document.body.removeChild(textarea);
+    }
+    return copied;
+  }
+
+  async function copyTextToClipboard(text, button) {
+    if (!text) {
+      return;
+    }
+
+    let copied = false;
+    try {
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(text);
+        copied = true;
+      } else {
+        copied = fallbackCopyText(text);
+      }
+    } catch (_error) {
+      copied = fallbackCopyText(text);
+    }
+
+    setCopyButtonLabel(button, copied ? "복사됨" : "복사 실패");
+    window.setTimeout(() => {
+      setCopyButtonLabel(button, "복사");
+    }, 1400);
+  }
+
+  function copyMergeResult() {
+    copyTextToClipboard(currentMergedText, dom.copyMergeResult);
+  }
+
+  function copyLeftText() {
+    copyTextToClipboard(dom.leftText.value, dom.copyLeftText);
+  }
+
+  function copyRightText() {
+    copyTextToClipboard(dom.rightText.value, dom.copyRightText);
   }
 
   function applySelectedMergeChoices() {
@@ -884,7 +961,10 @@
       renderDiff(dom.leftText.value, dom.rightText.value);
       saveState();
     });
+    dom.copyLeftText.addEventListener("click", copyLeftText);
+    dom.copyRightText.addEventListener("click", copyRightText);
     dom.swapTexts.addEventListener("click", swapTextInputs);
+    dom.copyMergeResult.addEventListener("click", copyMergeResult);
     dom.startMerge.addEventListener("click", () => {
       resetMergeSelections();
       setMergeActive(true);

@@ -99,7 +99,10 @@
 
         <div id="diffGrid" class="diff-grid">
           <article class="diff-panel">
-            <h3>왼쪽 (기준)</h3>
+            <div class="panel-title-row">
+              <h3>왼쪽 (기준)</h3>
+              <button id="copyLeftText" class="panel-action-btn" type="button">복사</button>
+            </div>
             <div class="panel-metrics">
               <article class="mini-metric">
                 <p class="mini-label">공백 포함</p>
@@ -113,7 +116,10 @@
             <div id="leftDiff" class="diff-output"></div>
           </article>
           <article class="diff-panel">
-            <h3>오른쪽 (비교)</h3>
+            <div class="panel-title-row">
+              <h3>오른쪽 (비교)</h3>
+              <button id="copyRightText" class="panel-action-btn" type="button">복사</button>
+            </div>
             <div class="panel-metrics">
               <article class="mini-metric">
                 <p class="mini-label">공백 포함</p>
@@ -127,7 +133,10 @@
             <div id="rightDiff" class="diff-output"></div>
           </article>
           <article id="mergePanel" class="diff-panel is-hidden">
-            <h3>병합 결과</h3>
+            <div class="panel-title-row">
+              <h3>병합 결과</h3>
+              <button id="copyMergeResult" class="panel-action-btn" type="button">복사</button>
+            </div>
             <div class="panel-metrics">
               <article class="mini-metric">
                 <p class="mini-label">공백 포함</p>
