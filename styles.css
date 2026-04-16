@@ -203,11 +203,34 @@ h3 {
   cursor: pointer;
 }
 
+.button-row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
+.secondary-btn {
+  border: 1px solid #9db4d3;
+  background: #fff;
+  color: #17406f;
+  border-radius: 10px;
+  padding: 0.42rem 0.82rem;
+  font: inherit;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
 .primary-btn:hover {
   filter: brightness(1.03);
 }
 
-.primary-btn:active {
+.secondary-btn:hover {
+  background: #f1f6fd;
+}
+
+.primary-btn:active,
+.secondary-btn:active {
   transform: translateY(1px);
 }
 
@@ -215,13 +238,6 @@ h3 {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 0.9rem;
-}
-
-.mini-metrics {
-  margin-top: 0.62rem;
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.55rem;
 }
 
 .mini-metric {
@@ -283,11 +299,21 @@ h3 {
   background: var(--accent-soft);
 }
 
+.chip.merged {
+  color: #0b5c86;
+  border-color: #a8d8f5;
+  background: #e2f5ff;
+}
+
 .diff-grid {
   margin-top: 0.85rem;
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 0.9rem;
+}
+
+.diff-grid.merge-active {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
 .diff-panel {
@@ -304,6 +330,15 @@ h3 {
   background: #f6f9fe;
 }
 
+.panel-metrics {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.55rem;
+  padding: 0.65rem 0.75rem;
+  border-bottom: 1px solid var(--border);
+  background: #fbfdff;
+}
+
 .diff-output {
   min-height: 220px;
   padding: 0.8rem;
@@ -314,6 +349,31 @@ h3 {
 
 .empty {
   color: #8c98a9;
+}
+
+.is-hidden {
+  display: none;
+}
+
+.diff-choice {
+  cursor: pointer;
+  border: 0;
+  outline: 0;
+  padding: 0 0.05rem;
+  transition: box-shadow 0.18s ease, filter 0.18s ease;
+}
+
+.diff-choice:hover {
+  filter: saturate(1.18);
+  box-shadow: 0 0 0 2px rgba(15, 98, 254, 0.22);
+}
+
+.diff-choice:focus-visible {
+  box-shadow: 0 0 0 3px rgba(15, 98, 254, 0.34);
+}
+
+.diff-choice.selected {
+  box-shadow: 0 0 0 2px #0f62fe;
 }
 
 .token-delete {
@@ -338,6 +398,29 @@ h3 {
 .token-replace-right {
   background: #d9f5e4;
   color: #146534;
+  border-radius: 4px;
+  animation: flash-change 0.35s ease;
+}
+
+.token-placeholder {
+  display: inline-block;
+  margin: 0 0.1rem;
+  padding: 0.02rem 0.32rem;
+  border: 1px dashed currentColor;
+  font-size: 0.78rem;
+  line-height: 1.35;
+  vertical-align: baseline;
+}
+
+.token-skip {
+  background: #f3f6fa;
+  color: #66758a;
+  border-radius: 4px;
+}
+
+.token-merge {
+  background: #dff3ff;
+  color: #075985;
   border-radius: 4px;
   animation: flash-change 0.35s ease;
 }
@@ -371,6 +454,10 @@ h3 {
   .editor-grid,
   .diff-grid,
   .metrics {
+    grid-template-columns: 1fr;
+  }
+
+  .diff-grid.merge-active {
     grid-template-columns: 1fr;
   }
 

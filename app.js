@@ -33,18 +33,27 @@
     countWithSpace: document.getElementById("countWithSpace"),
     countWithoutSpace: document.getElementById("countWithoutSpace"),
     compareNow: document.getElementById("compareNow"),
+    startMerge: document.getElementById("startMerge"),
     leftText: document.getElementById("leftText"),
     rightText: document.getElementById("rightText"),
     leftCountWithSpace: document.getElementById("leftCountWithSpace"),
     leftCountWithoutSpace: document.getElementById("leftCountWithoutSpace"),
     rightCountWithSpace: document.getElementById("rightCountWithSpace"),
     rightCountWithoutSpace: document.getElementById("rightCountWithoutSpace"),
+    diffGrid: document.getElementById("diffGrid"),
     leftDiff: document.getElementById("leftDiff"),
     rightDiff: document.getElementById("rightDiff"),
+    mergePanel: document.getElementById("mergePanel"),
+    mergeCountWithSpace: document.getElementById("mergeCountWithSpace"),
+    mergeCountWithoutSpace: document.getElementById("mergeCountWithoutSpace"),
+    mergeDiff: document.getElementById("mergeDiff"),
   };
 
   let diffDebounceId = null;
   let storageEnabled = true;
+  let mergeActive = false;
+  let mergeSelections = {};
+  let currentBlocks = [];
   const autoGrowTextareas = [dom.countInput, dom.leftText, dom.rightText];
   const bracketOptionInputs = [
     dom.excludeRoundBrackets,
@@ -150,6 +159,18 @@
       count += 1;
     }
     return count;
+  }
+
+  function formatCount(count) {
+    return count.toLocaleString("ko-KR");
+  }
+
+  function updateMergeCounter(text) {
+    const withSpace = countGraphemes(text);
+    const withoutSpace = countGraphemes(text.replace(/\s/gu, ""));
+
+    dom.mergeCountWithSpace.textContent = formatCount(withSpace);
+    dom.mergeCountWithoutSpace.textContent = formatCount(withoutSpace);
   }
 
   function autoResizeTextarea(textarea) {
@@ -329,6 +350,7 @@
   function buildBlocks(ops) {
     const blocks = [];
     let index = 0;
+    let changeId = 0;
 
     while (index < ops.length) {
       const op = ops[index];
@@ -353,12 +375,15 @@
         index += 1;
       }
 
+      const id = String(changeId);
+      changeId += 1;
+
       if (deleted && inserted) {
-        blocks.push({ type: "replace", left: deleted, right: inserted });
+        blocks.push({ id, type: "replace", left: deleted, right: inserted });
       } else if (deleted) {
-        blocks.push({ type: "delete", left: deleted });
+        blocks.push({ id, type: "delete", left: deleted });
       } else if (inserted) {
-        blocks.push({ type: "insert", right: inserted });
+        blocks.push({ id, type: "insert", right: inserted });
       }
     }
 
@@ -381,12 +406,141 @@
     parent.appendChild(span);
   }
 
+  function getBlockSideText(block, side) {
+    if (block.type === "delete") {
+      return side === "left" ? block.left : "";
+    }
+    if (block.type === "insert") {
+      return side === "right" ? block.right : "";
+    }
+    if (block.type === "replace") {
+      return side === "left" ? block.left : block.right;
+    }
+    return block.text || "";
+  }
+
+  function getBlockSideClass(block, side) {
+    if (block.type === "delete") {
+      return side === "left" ? "token-delete" : "token-delete token-placeholder";
+    }
+    if (block.type === "insert") {
+      return side === "right" ? "token-insert" : "token-skip token-placeholder";
+    }
+    if (block.type === "replace") {
+      return side === "left" ? "token-replace-left" : "token-replace-right";
+    }
+    return "";
+  }
+
+  function getEmptyChoiceLabel(block, side) {
+    if (block.type === "delete" && side === "right") {
+      return "삭제 적용";
+    }
+    if (block.type === "insert" && side === "left") {
+      return "추가 안 함";
+    }
+    return "";
+  }
+
+  function appendDiffChoice(parent, block, side) {
+    const text = getBlockSideText(block, side);
+
+    if (!mergeActive) {
+      appendText(parent, text, getBlockSideClass(block, side));
+      return;
+    }
+
+    const label = text || getEmptyChoiceLabel(block, side);
+    if (!label) {
+      return;
+    }
+
+    const span = document.createElement("span");
+    const isSelected = mergeSelections[block.id] === side;
+    span.className = `${getBlockSideClass(block, side)} diff-choice${isSelected ? " selected" : ""}`;
+    span.dataset.changeId = block.id;
+    span.dataset.side = side;
+    span.setAttribute("role", "button");
+    span.tabIndex = 0;
+    span.textContent = label;
+    parent.appendChild(span);
+  }
+
+  function getMergeTextForChoice(block, side) {
+    if (block.type === "delete") {
+      return side === "left" ? block.left : "";
+    }
+    if (block.type === "insert") {
+      return side === "right" ? block.right : "";
+    }
+    if (block.type === "replace") {
+      return side === "right" ? block.right : block.left;
+    }
+    return block.text || "";
+  }
+
+  function renderMergeResult(blocks) {
+    if (!mergeActive) {
+      updateMergeCounter("");
+      return;
+    }
+
+    dom.mergeDiff.textContent = "";
+
+    if (blocks.length === 0) {
+      dom.mergeDiff.textContent = "병합할 텍스트를 입력하세요.";
+      dom.mergeDiff.classList.add("empty");
+      updateMergeCounter("");
+      return;
+    }
+
+    dom.mergeDiff.classList.remove("empty");
+
+    const fragment = document.createDocumentFragment();
+    let mergedText = "";
+
+    for (const block of blocks) {
+      if (block.type === "equal") {
+        appendText(fragment, block.text);
+        mergedText += block.text;
+        continue;
+      }
+
+      const explicitSide = mergeSelections[block.id];
+      const selectedSide = explicitSide || "left";
+      const text = getMergeTextForChoice(block, selectedSide);
+      appendText(fragment, text, explicitSide && text ? "token-merge" : "");
+      mergedText += text;
+    }
+
+    dom.mergeDiff.appendChild(fragment);
+    updateMergeCounter(mergedText);
+  }
+
+  function resetMergeSelections() {
+    mergeSelections = {};
+  }
+
+  function setMergeActive(active) {
+    mergeActive = active;
+    dom.diffGrid.classList.toggle("merge-active", mergeActive);
+    dom.mergePanel.classList.toggle("is-hidden", !mergeActive);
+    dom.startMerge.textContent = mergeActive ? "병합 다시 시작" : "병합 시작";
+    dom.startMerge.setAttribute("aria-pressed", String(mergeActive));
+  }
+
+  function selectMergeChoice(changeId, side) {
+    mergeSelections[changeId] = side;
+    renderDiff(dom.leftText.value, dom.rightText.value);
+  }
+
   function renderDiff(leftText, rightText) {
     updateDiffCounters(leftText, rightText);
 
     const leftTokens = tokenize(leftText);
     const rightTokens = tokenize(rightText);
     const blocks = buildBlocks(lcsDiff(leftTokens, rightTokens));
+    currentBlocks = blocks;
 
     dom.leftDiff.textContent = "";
     dom.rightDiff.textContent = "";
@@ -396,6 +550,7 @@
       dom.leftDiff.classList.add("empty");
       dom.rightDiff.textContent = "비교 결과가 여기에 표시됩니다.";
       dom.rightDiff.classList.add("empty");
+      renderMergeResult(currentBlocks);
       return;
     }
 
@@ -409,18 +564,15 @@
       if (block.type === "equal") {
         appendText(leftFragment, block.text);
         appendText(rightFragment, block.text);
-      } else if (block.type === "delete") {
-        appendText(leftFragment, block.left, "token-delete");
-      } else if (block.type === "insert") {
-        appendText(rightFragment, block.right, "token-insert");
-      } else if (block.type === "replace") {
-        appendText(leftFragment, block.left, "token-replace-left");
-        appendText(rightFragment, block.right, "token-replace-right");
+      } else {
+        appendDiffChoice(leftFragment, block, "left");
+        appendDiffChoice(rightFragment, block, "right");
       }
     }
 
     dom.leftDiff.appendChild(leftFragment);
     dom.rightDiff.appendChild(rightFragment);
+    renderMergeResult(currentBlocks);
   }
 
   function scheduleDiffRender() {
@@ -430,6 +582,28 @@
     diffDebounceId = window.setTimeout(() => {
       renderDiff(dom.leftText.value, dom.rightText.value);
     }, 130);
+  }
+
+  function handleDiffChoiceClick(event) {
+    const target = event.target instanceof Element ? event.target : null;
+    const choice = target ? target.closest(".diff-choice") : null;
+    if (!choice || !mergeActive) {
+      return;
+    }
+    selectMergeChoice(choice.dataset.changeId, choice.dataset.side);
+  }
+
+  function handleDiffChoiceKeydown(event) {
+    if (event.key !== "Enter" && event.key !== " ") {
+      return;
+    }
+    const target = event.target instanceof Element ? event.target : null;
+    const choice = target ? target.closest(".diff-choice") : null;
+    if (!choice || !mergeActive) {
+      return;
+    }
+    event.preventDefault();
+    selectMergeChoice(choice.dataset.changeId, choice.dataset.side);
   }
 
   function bindEvents() {
@@ -447,11 +621,13 @@
 
     dom.leftText.addEventListener("input", () => {
       autoResizeTextarea(dom.leftText);
+      resetMergeSelections();
       scheduleDiffRender();
       saveState();
     });
     dom.rightText.addEventListener("input", () => {
       autoResizeTextarea(dom.rightText);
+      resetMergeSelections();
       scheduleDiffRender();
       saveState();
     });
@@ -462,6 +638,15 @@
       renderDiff(dom.leftText.value, dom.rightText.value);
       saveState();
     });
+    dom.startMerge.addEventListener("click", () => {
+      resetMergeSelections();
+      setMergeActive(true);
+      renderDiff(dom.leftText.value, dom.rightText.value);
+    });
+    dom.leftDiff.addEventListener("click", handleDiffChoiceClick);
+    dom.rightDiff.addEventListener("click", handleDiffChoiceClick);
+    dom.leftDiff.addEventListener("keydown", handleDiffChoiceKeydown);
+    dom.rightDiff.addEventListener("keydown", handleDiffChoiceKeydown);
   }
 
   function init() {

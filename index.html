@@ -59,7 +59,12 @@
       <section class="card">
         <div class="card-head">
           <h2>두 글 차이 비교</h2>
-          <button id="compareNow" class="primary-btn" type="button">지금 비교</button>
+          <div class="button-row">
+            <button id="compareNow" class="primary-btn" type="button">지금 비교</button>
+            <button id="startMerge" class="secondary-btn" type="button" aria-pressed="false">
+              병합 시작
+            </button>
+          </div>
         </div>
 
         <div class="editor-grid">
@@ -70,16 +75,6 @@
               class="text-input medium auto-grow"
               placeholder="원문 텍스트"
             ></textarea>
-            <div class="mini-metrics">
-              <article class="mini-metric">
-                <p class="mini-label">공백 포함</p>
-                <p id="leftCountWithSpace" class="mini-value">0</p>
-              </article>
-              <article class="mini-metric">
-                <p class="mini-label">공백 미포함</p>
-                <p id="leftCountWithoutSpace" class="mini-value">0</p>
-              </article>
-            </div>
           </div>
           <div>
             <label class="input-label" for="rightText">오른쪽 텍스트</label>
@@ -88,16 +83,6 @@
               class="text-input medium auto-grow"
               placeholder="비교 대상 텍스트"
             ></textarea>
-            <div class="mini-metrics">
-              <article class="mini-metric">
-                <p class="mini-label">공백 포함</p>
-                <p id="rightCountWithSpace" class="mini-value">0</p>
-              </article>
-              <article class="mini-metric">
-                <p class="mini-label">공백 미포함</p>
-                <p id="rightCountWithoutSpace" class="mini-value">0</p>
-              </article>
-            </div>
           </div>
         </div>
 
@@ -108,16 +93,51 @@
           <span class="chip removed">삭제</span>
           <span class="chip added">추가</span>
           <span class="chip changed">수정</span>
+          <span class="chip merged">병합 반영</span>
         </div>
 
-        <div class="diff-grid">
+        <div id="diffGrid" class="diff-grid">
           <article class="diff-panel">
             <h3>왼쪽 (기준)</h3>
+            <div class="panel-metrics">
+              <article class="mini-metric">
+                <p class="mini-label">공백 포함</p>
+                <p id="leftCountWithSpace" class="mini-value">0</p>
+              </article>
+              <article class="mini-metric">
+                <p class="mini-label">공백 미포함</p>
+                <p id="leftCountWithoutSpace" class="mini-value">0</p>
+              </article>
+            </div>
             <div id="leftDiff" class="diff-output"></div>
           </article>
           <article class="diff-panel">
             <h3>오른쪽 (비교)</h3>
+            <div class="panel-metrics">
+              <article class="mini-metric">
+                <p class="mini-label">공백 포함</p>
+                <p id="rightCountWithSpace" class="mini-value">0</p>
+              </article>
+              <article class="mini-metric">
+                <p class="mini-label">공백 미포함</p>
+                <p id="rightCountWithoutSpace" class="mini-value">0</p>
+              </article>
+            </div>
             <div id="rightDiff" class="diff-output"></div>
+          </article>
+          <article id="mergePanel" class="diff-panel is-hidden">
+            <h3>병합 결과</h3>
+            <div class="panel-metrics">
+              <article class="mini-metric">
+                <p class="mini-label">공백 포함</p>
+                <p id="mergeCountWithSpace" class="mini-value">0</p>
+              </article>
+              <article class="mini-metric">
+                <p class="mini-label">공백 미포함</p>
+                <p id="mergeCountWithoutSpace" class="mini-value">0</p>
+              </article>
+            </div>
+            <div id="mergeDiff" class="diff-output"></div>
           </article>
         </div>
       </section>
