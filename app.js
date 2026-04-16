@@ -47,6 +47,7 @@
     mergeCountWithSpace: document.getElementById("mergeCountWithSpace"),
     mergeCountWithoutSpace: document.getElementById("mergeCountWithoutSpace"),
     mergeDiff: document.getElementById("mergeDiff"),
+    selectionCountBadge: document.getElementById("selectionCountBadge"),
   };
 
   let diffDebounceId = null;
@@ -54,6 +55,7 @@
   let mergeActive = false;
   let mergeSelections = {};
   let currentBlocks = [];
+  let selectionPointer = null;
   const autoGrowTextareas = [dom.countInput, dom.leftText, dom.rightText];
   const bracketOptionInputs = [
     dom.excludeRoundBrackets,
@@ -171,6 +173,127 @@
 
     dom.mergeCountWithSpace.textContent = formatCount(withSpace);
     dom.mergeCountWithoutSpace.textContent = formatCount(withoutSpace);
+  }
+
+  function getElementFromNode(node) {
+    if (!node) {
+      return null;
+    }
+    return node.nodeType === Node.ELEMENT_NODE ? node : node.parentElement;
+  }
+
+  function rangeIntersectsNode(range, node) {
+    try {
+      return range.intersectsNode(node);
+    } catch (_error) {
+      return false;
+    }
+  }
+
+  function getDiffOutputs() {
+    return [dom.leftDiff, dom.rightDiff, dom.mergeDiff].filter(Boolean);
+  }
+
+  function isSelectableDiffTextNode(node) {
+    const element = getElementFromNode(node);
+    if (!element) {
+      return false;
+    }
+    return Boolean(element.closest(".diff-output")) && !element.closest(".token-placeholder");
+  }
+
+  function extractSelectedDiffText(selection) {
+    if (!selection || selection.rangeCount === 0 || selection.isCollapsed) {
+      return "";
+    }
+
+    const range = selection.getRangeAt(0);
+    const touchesDiffOutput = getDiffOutputs().some((output) => rangeIntersectsNode(range, output));
+    if (!touchesDiffOutput) {
+      return "";
+    }
+
+    const root =
+      range.commonAncestorContainer.nodeType === Node.TEXT_NODE
+        ? range.commonAncestorContainer.parentNode
+        : range.commonAncestorContainer;
+    if (!root) {
+      return "";
+    }
+
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+      acceptNode(node) {
+        if (!isSelectableDiffTextNode(node) || !rangeIntersectsNode(range, node)) {
+          return NodeFilter.FILTER_REJECT;
+        }
+        return NodeFilter.FILTER_ACCEPT;
+      },
+    });
+
+    let selectedText = "";
+    let textNode = walker.nextNode();
+    while (textNode) {
+      let start = 0;
+      let end = textNode.nodeValue.length;
+      if (textNode === range.startContainer) {
+        start = range.startOffset;
+      }
+      if (textNode === range.endContainer) {
+        end = range.endOffset;
+      }
+      selectedText += textNode.nodeValue.slice(start, end);
+      textNode = walker.nextNode();
+    }
+
+    return selectedText;
+  }
+
+  function getSelectionBadgePosition(selection) {
+    if (selectionPointer) {
+      return selectionPointer;
+    }
+
+    const range = selection.rangeCount > 0 ? selection.getRangeAt(0) : null;
+    const rect = range ? range.getBoundingClientRect() : null;
+    if (rect && (rect.width > 0 || rect.height > 0)) {
+      return { x: rect.right, y: rect.top };
+    }
+    return { x: 0, y: 0 };
+  }
+
+  function hideSelectionBadge() {
+    dom.selectionCountBadge.classList.add("is-hidden");
+  }
+
+  function showSelectionBadge(count, position) {
+    dom.selectionCountBadge.textContent = `${formatCount(count)}자`;
+    dom.selectionCountBadge.classList.remove("is-hidden");
+
+    const badgeRect = dom.selectionCountBadge.getBoundingClientRect();
+    const maxLeft = Math.max(8, window.innerWidth - badgeRect.width - 20);
+    const maxTop = Math.max(16, window.innerHeight - badgeRect.height - 8);
+    const left = Math.min(Math.max(position.x, 8), maxLeft);
+    const top = Math.min(Math.max(position.y, 16), maxTop);
+
+    dom.selectionCountBadge.style.left = `${left}px`;
+    dom.selectionCountBadge.style.top = `${top}px`;
+  }
+
+  function updateSelectionCountBadge() {
+    const selection = window.getSelection();
+    const selectedText = extractSelectedDiffText(selection);
+    const selectedCount = countGraphemes(selectedText);
+
+    if (selectedCount === 0) {
+      hideSelectionBadge();
+      return;
+    }
+
+    showSelectionBadge(selectedCount, getSelectionBadgePosition(selection));
+  }
+
+  function rememberSelectionPointer(event) {
+    selectionPointer = { x: event.clientX, y: event.clientY };
   }
 
   function autoResizeTextarea(textarea) {
@@ -535,6 +658,7 @@
   }
 
   function renderDiff(leftText, rightText) {
+    hideSelectionBadge();
     updateDiffCounters(leftText, rightText);
 
     const leftTokens = tokenize(leftText);
@@ -606,6 +730,31 @@
     selectMergeChoice(choice.dataset.changeId, choice.dataset.side);
   }
 
+  function bindSelectionCountEvents() {
+    document.addEventListener("pointerdown", (event) => {
+      rememberSelectionPointer(event);
+    });
+    document.addEventListener("pointermove", (event) => {
+      if (event.buttons !== 1) {
+        return;
+      }
+      rememberSelectionPointer(event);
+      updateSelectionCountBadge();
+    });
+    document.addEventListener("pointerup", (event) => {
+      rememberSelectionPointer(event);
+      window.setTimeout(updateSelectionCountBadge, 0);
+    });
+    document.addEventListener("selectionchange", () => {
+      window.setTimeout(updateSelectionCountBadge, 0);
+    });
+    document.addEventListener("keyup", () => {
+      selectionPointer = null;
+      updateSelectionCountBadge();
+    });
+    window.addEventListener("scroll", updateSelectionCountBadge, true);
+  }
+
   function bindEvents() {
     dom.countInput.addEventListener("input", () => {
       autoResizeTextarea(dom.countInput);
@@ -647,6 +796,7 @@
     dom.rightDiff.addEventListener("click", handleDiffChoiceClick);
     dom.leftDiff.addEventListener("keydown", handleDiffChoiceKeydown);
     dom.rightDiff.addEventListener("keydown", handleDiffChoiceKeydown);
+    bindSelectionCountEvents();
   }
 
   function init() {
