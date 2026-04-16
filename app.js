@@ -33,6 +33,7 @@
     countWithSpace: document.getElementById("countWithSpace"),
     countWithoutSpace: document.getElementById("countWithoutSpace"),
     compareNow: document.getElementById("compareNow"),
+    swapTexts: document.getElementById("swapTexts"),
     startMerge: document.getElementById("startMerge"),
     leftText: document.getElementById("leftText"),
     rightText: document.getElementById("rightText"),
@@ -727,6 +728,17 @@
     }, 130);
   }
 
+  function swapTextInputs() {
+    const leftValue = dom.leftText.value;
+    dom.leftText.value = dom.rightText.value;
+    dom.rightText.value = leftValue;
+    resetMergeSelections();
+    autoResizeTextarea(dom.leftText);
+    autoResizeTextarea(dom.rightText);
+    renderDiff(dom.leftText.value, dom.rightText.value);
+    saveState();
+  }
+
   function handleDiffChoiceClick(event) {
     const target = event.target instanceof Element ? event.target : null;
     const choice = target ? target.closest(".diff-choice") : null;
@@ -806,6 +818,7 @@
       renderDiff(dom.leftText.value, dom.rightText.value);
       saveState();
     });
+    dom.swapTexts.addEventListener("click", swapTextInputs);
     dom.startMerge.addEventListener("click", () => {
       resetMergeSelections();
       setMergeActive(true);
