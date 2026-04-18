@@ -470,6 +470,25 @@
     return selectedText;
   }
 
+  function selectionTouchesDiffOutput(selection) {
+    if (!selection || selection.rangeCount === 0 || selection.isCollapsed) {
+      return false;
+    }
+
+    const range = selection.getRangeAt(0);
+    return getDiffOutputs().some((output) => rangeIntersectsNode(range, output));
+  }
+
+  function copySelectedDiffText(event) {
+    const selection = window.getSelection();
+    if (!selectionTouchesDiffOutput(selection) || !event.clipboardData) {
+      return;
+    }
+
+    event.preventDefault();
+    event.clipboardData.setData("text/plain", extractSelectedDiffText(selection));
+  }
+
   function getSelectedMergeChoices(selection) {
     if (!selection || selection.rangeCount === 0 || selection.isCollapsed) {
       return {};
@@ -1771,6 +1790,7 @@
       selectionPointer = null;
       updateSelectionCountBadge();
     });
+    document.addEventListener("copy", copySelectedDiffText);
     window.addEventListener("scroll", updateSelectionCountBadge, true);
   }
 
