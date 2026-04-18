@@ -55,6 +55,8 @@
     selectionCountBadge: document.getElementById("selectionCountBadge"),
     selectionCountText: document.getElementById("selectionCountText"),
     applySelectionToMerge: document.getElementById("applySelectionToMerge"),
+    cancelMergeLeft: document.getElementById("cancelMergeLeft"),
+    cancelMergeRight: document.getElementById("cancelMergeRight"),
     editMergeSelection: document.getElementById("editMergeSelection"),
     cancelManualEdit: document.getElementById("cancelManualEdit"),
   };
@@ -69,6 +71,7 @@
   let manualMergeSegments = null;
   let selectionPointer = null;
   let selectedMergeChoices = {};
+  let selectedMergeCancelRange = null;
   let selectedManualEditRange = null;
   let selectedManualCancelRange = null;
   const autoGrowTextareas = [dom.countInput, dom.leftText, dom.rightText];
@@ -166,6 +169,10 @@
           if (originalSegments && originalSegments.length > 0) {
             normalized.originalSegments = originalSegments;
           }
+        }
+
+        if (segment.unlockedMerge === true) {
+          normalized.unlockedMerge = true;
         }
 
         return normalized;
@@ -286,6 +293,9 @@
     const originalSegments = Object.prototype.hasOwnProperty.call(overrides, "originalSegments")
       ? overrides.originalSegments
       : segment.originalSegments;
+    const unlockedMerge = Object.prototype.hasOwnProperty.call(overrides, "unlockedMerge")
+      ? overrides.unlockedMerge
+      : segment.unlockedMerge;
 
     if (typeof changeId === "string") {
       next.changeId = changeId;
@@ -295,6 +305,9 @@
     }
     if (Array.isArray(originalSegments) && originalSegments.length > 0) {
       next.originalSegments = originalSegments.map((originalSegment) => copySegment(originalSegment));
+    }
+    if (unlockedMerge === true) {
+      next.unlockedMerge = true;
     }
     return next;
   }
@@ -314,12 +327,25 @@
       right.className !== "token-manual-edit" &&
       left.className === right.className &&
       left.changeId === right.changeId &&
+      Boolean(left.unlockedMerge) === Boolean(right.unlockedMerge) &&
       arraysEqual(getSegmentChangeIds(left), getSegmentChangeIds(right))
     );
   }
 
+  function appendManualDeletePlaceholder(parent, segment, index) {
+    const span = document.createElement("span");
+    span.className = "token-manual-edit token-manual-delete token-placeholder";
+    span.dataset.manualEditIndex = String(index);
+    span.textContent = "삭제됨";
+    span.title = "클릭해서 직접 수정을 취소할 수 있습니다.";
+    parent.appendChild(span);
+  }
+
   function appendMergeSegment(parent, segment, index) {
     if (!segment.text) {
+      if (canCancelManualSegment(segment)) {
+        appendManualDeletePlaceholder(parent, segment, index);
+      }
       return;
     }
 
@@ -331,7 +357,10 @@
     const span = document.createElement("span");
     span.className = segment.className;
     span.textContent = segment.text;
-    if (canCancelManualSegment(segment)) {
+    if (segment.className === "token-merge") {
+      span.dataset.mergeSegmentIndex = String(index);
+      span.title = "클릭하거나 드래그해서 병합 반영을 취소할 수 있습니다.";
+    } else if (canCancelManualSegment(segment)) {
       span.dataset.manualEditIndex = String(index);
       span.title = "클릭하거나 드래그해서 직접 수정을 취소할 수 있습니다.";
     }
@@ -486,6 +515,10 @@
     let textNode = walker.nextNode();
 
     while (textNode) {
+      if (getElementFromNode(textNode)?.closest(".token-placeholder")) {
+        textNode = walker.nextNode();
+        continue;
+      }
       const nodeText = textNode.nodeValue;
       if (!rangeIntersectsNode(range, textNode)) {
         offset += nodeText.length;
@@ -551,6 +584,27 @@
       start: Math.min(...ranges.map((range) => range.start)),
       end: Math.max(...ranges.map((range) => range.end)),
       text: ranges.map((range) => range.text).join(""),
+      indexes: ranges.map((range) => range.index),
+    };
+  }
+
+  function getMergeCancelRange(textRange) {
+    const ranges = getSegmentRangesForTextRange(
+      currentMergeSegments,
+      textRange.start,
+      textRange.end,
+      (segment) => segment.className === "token-merge" && typeof segment.changeId === "string",
+    );
+
+    if (ranges.length === 0) {
+      return null;
+    }
+
+    return {
+      start: Math.min(...ranges.map((range) => range.start)),
+      end: Math.max(...ranges.map((range) => range.end)),
+      text: ranges.map((range) => range.text).join(""),
+      indexes: ranges.map((range) => range.index),
     };
   }
 
@@ -598,19 +652,31 @@
   function hideSelectionBadge() {
     dom.selectionCountBadge.classList.add("is-hidden");
     selectedMergeChoices = {};
+    selectedMergeCancelRange = null;
     selectedManualEditRange = null;
     selectedManualCancelRange = null;
   }
 
-  function showSelectionBadge(count, position, mergeChoices, manualEditRange, manualCancelRange) {
+  function showSelectionBadge(
+    count,
+    position,
+    mergeChoices,
+    mergeCancelRange,
+    manualEditRange,
+    manualCancelRange,
+  ) {
     const hasMergeChoices = Object.keys(mergeChoices).length > 0;
+    const hasMergeCancelRange = Boolean(mergeCancelRange);
     const hasManualEditRange = Boolean(manualEditRange);
     const hasManualCancelRange = Boolean(manualCancelRange);
     selectedMergeChoices = mergeChoices;
+    selectedMergeCancelRange = mergeCancelRange;
     selectedManualEditRange = manualEditRange;
     selectedManualCancelRange = manualCancelRange;
     dom.selectionCountText.textContent = `${formatCount(count)}자`;
     dom.applySelectionToMerge.disabled = !hasMergeChoices;
+    dom.cancelMergeLeft.disabled = !hasMergeCancelRange;
+    dom.cancelMergeRight.disabled = !hasMergeCancelRange;
     dom.editMergeSelection.disabled = !hasManualEditRange;
     dom.cancelManualEdit.disabled = !hasManualCancelRange;
     dom.selectionCountBadge.classList.remove("is-hidden");
@@ -636,6 +702,7 @@
         : null;
     const manualEditRange =
       mergeTextRange && isDirectEditableRange(mergeTextRange) ? mergeTextRange : null;
+    const mergeCancelRange = mergeTextRange ? getMergeCancelRange(mergeTextRange) : null;
     const manualCancelRange = mergeTextRange ? getManualCancelRange(mergeTextRange) : null;
 
     if (selectedCount === 0) {
@@ -647,6 +714,7 @@
       selectedCount,
       getSelectionBadgePosition(selection),
       mergeChoices,
+      mergeCancelRange,
       manualEditRange,
       manualCancelRange,
     );
@@ -1033,10 +1101,13 @@
   }
 
   function selectMergeChoice(changeId, side) {
+    const choices = { [changeId]: side };
+    if (!resolveManualMergeConflicts(choices)) {
+      return;
+    }
+
     if (manualMergeSegments) {
-      manualMergeSegments = applyMergeChoicesToSegments(currentMergeSegments, {
-        [changeId]: side,
-      });
+      manualMergeSegments = applyMergeChoicesToSegments(currentMergeSegments, choices);
     }
     mergeSelections[changeId] = side;
     renderDiff(dom.leftText.value, dom.rightText.value);
@@ -1102,6 +1173,54 @@
     );
   }
 
+  function getManualConflictChangeIds(segments, choices) {
+    return Object.keys(choices).filter((changeId) => hasManualOverrideForChangeId(segments, changeId));
+  }
+
+  function confirmManualMergeConflict(conflictCount) {
+    return window.confirm(
+      [
+        `${formatCount(conflictCount)}개의 병합 구간이 직접 수정된 내용과 겹칩니다.`,
+        "",
+        "확인: 직접 수정 내용을 취소하고 병합 결과를 적용합니다.",
+        "취소: 기존 직접 수정 상태를 유지합니다.",
+      ].join("\n"),
+    );
+  }
+
+  function restoreManualOverridesForChangeIds(segments, changeIds) {
+    const conflicts = new Set(changeIds);
+    const nextSegments = [];
+
+    for (const segment of segments) {
+      const touchesConflict = getSegmentChangeIds(segment).some((changeId) => conflicts.has(changeId));
+      if (!isManualMergeSegment(segment) || !touchesConflict) {
+        nextSegments.push(copySegment(segment));
+        continue;
+      }
+
+      nextSegments.push(...getRestoreSegmentsForManualSegment(segment));
+    }
+
+    return mergeAdjacentSegments(nextSegments);
+  }
+
+  function resolveManualMergeConflicts(choices) {
+    const conflictChangeIds = getManualConflictChangeIds(currentMergeSegments, choices);
+    if (conflictChangeIds.length === 0) {
+      return true;
+    }
+
+    if (!confirmManualMergeConflict(conflictChangeIds.length)) {
+      return false;
+    }
+
+    const nextSegments = restoreManualOverridesForChangeIds(currentMergeSegments, conflictChangeIds);
+    currentMergeSegments = nextSegments.map((segment) => copySegment(segment));
+    manualMergeSegments = hasCustomMergeSegments(nextSegments) ? nextSegments : null;
+    return true;
+  }
+
   function applyMergeChoiceToSegments(segments, changeId, side) {
     if (side !== "left" && side !== "right") {
       return segments.map((segment) => copySegment(segment));
@@ -1160,6 +1279,27 @@
     }
 
     return [...coveredChangeIds];
+  }
+
+  function getMergeChangeIdsForRange(segments, start, end) {
+    let offset = 0;
+    const changeIds = new Set();
+
+    for (const segment of segments) {
+      const segmentStart = offset;
+      const segmentEnd = offset + segment.text.length;
+      offset = segmentEnd;
+
+      if (segmentEnd <= start || segmentStart >= end || segment.className !== "token-merge") {
+        continue;
+      }
+
+      if (typeof segment.changeId === "string") {
+        changeIds.add(segment.changeId);
+      }
+    }
+
+    return [...changeIds];
   }
 
   function extractSegmentsForRange(segments, start, end) {
@@ -1227,8 +1367,8 @@
     return mergeAdjacentSegments(nextSegments);
   }
 
-  function hasManualMergeSegments(segments) {
-    return segments.some(isManualMergeSegment);
+  function hasCustomMergeSegments(segments) {
+    return segments.some((segment) => isManualMergeSegment(segment) || segment.unlockedMerge === true);
   }
 
   function getCurrentSegmentsForChangeIds(changeIds) {
@@ -1258,6 +1398,65 @@
     return getCurrentSegmentsForChangeIds(getSegmentChangeIds(segment));
   }
 
+  function createMergeCancelSegment(changeId, side) {
+    const block = getBlockById(changeId);
+    if (!block) {
+      return null;
+    }
+
+    return {
+      text: getMergeTextForChoice(block, side),
+      className: "",
+      changeId,
+      unlockedMerge: true,
+    };
+  }
+
+  function cancelMergeChoicesInSegments(segments, canceledChangeIds, side) {
+    const canceled = new Set(canceledChangeIds);
+    const nextSegments = [];
+
+    for (const segment of segments) {
+      if (segment.className !== "token-merge" || !canceled.has(segment.changeId)) {
+        nextSegments.push(copySegment(segment));
+        continue;
+      }
+
+      const cancelSegment = createMergeCancelSegment(segment.changeId, side);
+      if (cancelSegment) {
+        nextSegments.push(cancelSegment);
+      }
+    }
+
+    return applyMergeChoicesToSegments(mergeAdjacentSegments(nextSegments), mergeSelections);
+  }
+
+  function cancelSelectedMergeChoice(side) {
+    if (!selectedMergeCancelRange || (side !== "left" && side !== "right")) {
+      return;
+    }
+
+    const canceledChangeIds = getMergeChangeIdsForRange(
+      currentMergeSegments,
+      selectedMergeCancelRange.start,
+      selectedMergeCancelRange.end,
+    );
+    if (canceledChangeIds.length === 0) {
+      return;
+    }
+
+    for (const changeId of canceledChangeIds) {
+      delete mergeSelections[changeId];
+    }
+
+    const nextSegments = cancelMergeChoicesInSegments(currentMergeSegments, canceledChangeIds, side);
+    manualMergeSegments = hasCustomMergeSegments(nextSegments) ? nextSegments : null;
+
+    renderDiff(dom.leftText.value, dom.rightText.value);
+    hideSelectionBadge();
+    saveState();
+  }
+
   function cancelManualEditsInRange(segments, start, end) {
     let offset = 0;
     const nextSegments = [];
@@ -1278,17 +1477,36 @@
     return applyMergeChoicesToSegments(mergeAdjacentSegments(nextSegments), mergeSelections);
   }
 
+  function cancelManualEditsByIndexes(segments, indexes) {
+    const canceledIndexes = new Set(indexes);
+    const nextSegments = [];
+
+    for (const [index, segment] of segments.entries()) {
+      if (!canCancelManualSegment(segment) || !canceledIndexes.has(index)) {
+        nextSegments.push(copySegment(segment));
+        continue;
+      }
+
+      nextSegments.push(...getRestoreSegmentsForManualSegment(segment));
+    }
+
+    return applyMergeChoicesToSegments(mergeAdjacentSegments(nextSegments), mergeSelections);
+  }
+
   function cancelSelectedManualEdit() {
     if (!selectedManualCancelRange) {
       return;
     }
 
-    const nextSegments = cancelManualEditsInRange(
-      currentMergeSegments,
-      selectedManualCancelRange.start,
-      selectedManualCancelRange.end,
-    );
-    manualMergeSegments = hasManualMergeSegments(nextSegments) ? nextSegments : null;
+    const nextSegments =
+      Array.isArray(selectedManualCancelRange.indexes) && selectedManualCancelRange.indexes.length > 0
+        ? cancelManualEditsByIndexes(currentMergeSegments, selectedManualCancelRange.indexes)
+        : cancelManualEditsInRange(
+            currentMergeSegments,
+            selectedManualCancelRange.start,
+            selectedManualCancelRange.end,
+          );
+    manualMergeSegments = hasCustomMergeSegments(nextSegments) ? nextSegments : null;
     renderMergeResult(currentBlocks);
     hideSelectionBadge();
     saveState();
@@ -1296,22 +1514,29 @@
 
   function handleMergeDiffClick(event) {
     const target = event.target instanceof Element ? event.target : null;
+    const mergeElement = target ? target.closest("[data-merge-segment-index]") : null;
     const manualEditElement = target ? target.closest("[data-manual-edit-index]") : null;
-    if (!manualEditElement || !mergeActive) {
+    if ((!mergeElement && !manualEditElement) || !mergeActive) {
       return;
     }
 
-    const segmentIndex = Number(manualEditElement.dataset.manualEditIndex);
-    const manualCancelRange = getTextRangeForSegmentIndex(segmentIndex);
-    if (!manualCancelRange || !manualCancelRange.text) {
+    const mergeSegmentIndex = mergeElement ? Number(mergeElement.dataset.mergeSegmentIndex) : null;
+    const manualSegmentIndex = manualEditElement ? Number(manualEditElement.dataset.manualEditIndex) : null;
+    const mergeCancelRange = getTextRangeForSegmentIndex(mergeSegmentIndex);
+    const manualCancelRange = getTextRangeForSegmentIndex(manualSegmentIndex);
+    if (manualCancelRange && Number.isInteger(manualSegmentIndex)) {
+      manualCancelRange.indexes = [manualSegmentIndex];
+    }
+    if ((!mergeCancelRange || !mergeCancelRange.text) && !manualCancelRange) {
       return;
     }
 
     window.setTimeout(() => {
       showSelectionBadge(
-        countGraphemes(manualCancelRange.text),
+        countGraphemes((mergeCancelRange || manualCancelRange).text || ""),
         { x: event.clientX, y: event.clientY },
         {},
+        mergeCancelRange,
         null,
         manualCancelRange,
       );
@@ -1399,6 +1624,10 @@
 
     if (!mergeActive) {
       setMergeActive(true);
+    }
+
+    if (!resolveManualMergeConflicts(selectedMergeChoices)) {
+      return;
     }
 
     if (manualMergeSegments) {
@@ -1502,6 +1731,14 @@
       event.preventDefault();
     });
     dom.applySelectionToMerge.addEventListener("click", applySelectedMergeChoices);
+    dom.cancelMergeLeft.addEventListener("pointerdown", (event) => {
+      event.preventDefault();
+    });
+    dom.cancelMergeLeft.addEventListener("click", () => cancelSelectedMergeChoice("left"));
+    dom.cancelMergeRight.addEventListener("pointerdown", (event) => {
+      event.preventDefault();
+    });
+    dom.cancelMergeRight.addEventListener("click", () => cancelSelectedMergeChoice("right"));
     dom.editMergeSelection.addEventListener("pointerdown", (event) => {
       event.preventDefault();
     });

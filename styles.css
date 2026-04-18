@@ -434,6 +434,26 @@ h3 {
   background: #e2f5ff;
 }
 
+.selection-merge-btn.merge-cancel-left {
+  border-color: #f3bcc4;
+  background: var(--danger-soft);
+  color: var(--danger-text);
+}
+
+.selection-merge-btn.merge-cancel-left:hover {
+  background: #ffdce2;
+}
+
+.selection-merge-btn.merge-cancel-right {
+  border-color: #b8e8ca;
+  background: var(--success-soft);
+  color: var(--success-text);
+}
+
+.selection-merge-btn.merge-cancel-right:hover {
+  background: #d9f5e4;
+}
+
 .selection-merge-btn:disabled {
   display: none;
 }
@@ -505,6 +525,7 @@ h3 {
   background: #dff3ff;
   color: #075985;
   border-radius: 4px;
+  cursor: pointer;
   animation: flash-change 0.35s ease;
 }
 
@@ -515,6 +536,15 @@ h3 {
   border-radius: 4px;
   cursor: pointer;
   animation: flash-change 0.35s ease;
+}
+
+.token-manual-delete {
+  margin: 0 0.1rem;
+  border-style: dashed;
+  font-size: 0.78rem;
+  font-weight: 700;
+  line-height: 1.35;
+  vertical-align: baseline;
 }
 
 @keyframes rise-in {
