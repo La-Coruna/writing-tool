@@ -508,6 +508,15 @@ h3 {
   animation: flash-change 0.35s ease;
 }
 
+.token-manual-edit {
+  border: 1px solid #bed4f8;
+  background: var(--accent-soft);
+  color: #124ca3;
+  border-radius: 4px;
+  cursor: pointer;
+  animation: flash-change 0.35s ease;
+}
+
 @keyframes rise-in {
   from {
     opacity: 0;
